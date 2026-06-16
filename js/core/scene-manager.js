@@ -58,6 +58,12 @@ export default class SceneManager {
     }
   }
 
+  handleTouchMove(touch) {
+    if (this.currentScene && this.currentScene.handleTouchMove) {
+      this.currentScene.handleTouchMove(touch);
+    }
+  }
+
   handleTouchEnd(touch) {
     if (this.currentScene && this.currentScene.handleTouchEnd) {
       this.currentScene.handleTouchEnd(touch);

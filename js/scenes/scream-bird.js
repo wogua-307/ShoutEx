@@ -10,7 +10,7 @@ import {
   hitTest,
 } from '../ui/pixel-ui.js';
 import GameSettingsOverlay from '../ui/game-settings-overlay.js';
-import { drawHistoryList } from '../ui/history-panel.js';
+import HistoryOverlay from '../ui/history-overlay.js';
 import { addGameHistory, getGameHistory } from '../core/game-history.js';
 import { getHighScore, setHighScore } from '../core/storage.js';
 
@@ -29,6 +29,11 @@ export default class ScreamBirdScene {
     this.music = options.music;
     this.goToMenu = options.goToMenu;
     this.settingsOverlay = new GameSettingsOverlay(this.settings, this.music);
+    this.historyOverlay = new HistoryOverlay({
+      title: '尖叫小鸟',
+      accent: COLORS.orange,
+      getHistory: () => this.history,
+    });
     this.phase = PHASE.START;
     this.time = 0;
     this.birdY = SCREEN.height * 0.48;
@@ -104,7 +109,8 @@ export default class ScreamBirdScene {
         h: 44,
       },
     };
-    this.settingsOverlay.setTopControls(top, margin);
+    this.historyOverlay.setTopControls(top, margin, 56);
+    this.settingsOverlay.setTopControls(top, margin + 56);
   }
 
   resetRun() {
@@ -241,6 +247,7 @@ export default class ScreamBirdScene {
     }
 
     this.settingsOverlay.drawModal(ctx);
+    this.historyOverlay.drawModal(ctx);
   }
 
   drawWorld(ctx) {
@@ -327,6 +334,7 @@ export default class ScreamBirdScene {
       pressed: this.pressedId === 'BACK',
     });
     this.settingsOverlay.drawButton(ctx);
+    this.historyOverlay.drawButton(ctx);
 
     if (this.phase === PHASE.PLAYING) {
       const scorePill = this.layout.scorePill;
@@ -374,11 +382,12 @@ export default class ScreamBirdScene {
       align: 'center',
       weight: '900',
     });
-    drawPixelText(ctx, '中等音量悬停，大声才上升', SCREEN.width / 2, rect.y + 72, {
+    drawPixelText(ctx, '提示：中等音量悬停，大声才上升', SCREEN.width / 2, rect.y + 72, {
       size: 15,
       color: COLORS.textMuted,
       shadow: null,
       align: 'center',
+      maxWidth: rect.w - 36,
     });
     drawPixelText(ctx, `无限挑战 / 历史最高 ${this.highScore}`, SCREEN.width / 2, rect.y + 100, {
       size: 16,
@@ -402,13 +411,6 @@ export default class ScreamBirdScene {
         maxWidth: meterRect.w - 20,
       });
     }
-
-    drawHistoryList(ctx, this.history, {
-      x: rect.x + 18,
-      y: rect.y + 186,
-      w: rect.w - 36,
-      h: rect.h - 202,
-    });
 
     drawButton(ctx, this.layout.startButton, '开始挑战', {
       color: COLORS.orange,
@@ -448,13 +450,6 @@ export default class ScreamBirdScene {
       align: 'center',
       weight: '900',
     });
-    drawHistoryList(ctx, this.history, {
-      x: rect.x + 18,
-      y: rect.y + 164,
-      w: rect.w - 36,
-      h: 64,
-    });
-
     drawButton(ctx, this.layout.restartButton, '再来一局', {
       color: COLORS.orange,
       pressed: this.pressedId === 'RESTART',
@@ -469,6 +464,10 @@ export default class ScreamBirdScene {
   handleTouchStart(touch) {
     const x = touch.clientX;
     const y = touch.clientY;
+
+    if (this.historyOverlay.handleTouchStart(touch)) {
+      return;
+    }
 
     if (this.settingsOverlay.handleTouchStart(touch)) {
       return;
@@ -501,6 +500,10 @@ export default class ScreamBirdScene {
     const y = touch.clientY;
     const pressedId = this.pressedId;
     this.pressedTimer = 0.12;
+
+    if (this.historyOverlay.handleTouchEnd(touch)) {
+      return;
+    }
 
     if (this.settingsOverlay.handleTouchEnd(touch)) {
       return;

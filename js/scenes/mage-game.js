@@ -9,7 +9,7 @@ import {
   hitTest,
 } from '../ui/pixel-ui.js';
 import GameSettingsOverlay from '../ui/game-settings-overlay.js';
-import { drawHistoryList } from '../ui/history-panel.js';
+import HistoryOverlay from '../ui/history-overlay.js';
 import { addGameHistory, getGameHistory } from '../core/game-history.js';
 import { getHighScore, setHighScore } from '../core/storage.js';
 
@@ -28,6 +28,11 @@ export default class MageGameScene {
     this.music = options.music;
     this.goToMenu = options.goToMenu;
     this.settingsOverlay = new GameSettingsOverlay(this.settings, this.music);
+    this.historyOverlay = new HistoryOverlay({
+      title: '言出法随小法师',
+      accent: COLORS.purple,
+      getHistory: () => this.history,
+    });
     this.phase = PHASE.START;
     this.time = 0;
     this.baseHp = 100;
@@ -69,7 +74,8 @@ export default class MageGameScene {
       laneBottom: bottom - 92,
       baseWidth: Math.max(70, SCREEN.width * 0.18),
     };
-    this.settingsOverlay.setTopControls(top, margin);
+    this.historyOverlay.setTopControls(top, margin, 56);
+    this.settingsOverlay.setTopControls(top, margin + 56);
   }
 
   resetRun() {
@@ -243,6 +249,7 @@ export default class MageGameScene {
     }
 
     this.settingsOverlay.drawModal(ctx);
+    this.historyOverlay.drawModal(ctx);
   }
 
   drawWorld(ctx) {
@@ -338,6 +345,7 @@ export default class MageGameScene {
       pressed: this.pressedId === 'BACK',
     });
     this.settingsOverlay.drawButton(ctx);
+    this.historyOverlay.drawButton(ctx);
 
     if (this.phase === PHASE.PLAYING) {
       drawPixelText(ctx, `${this.score}`, SCREEN.width - this.layout.margin, this.layout.top + 8, {
@@ -381,11 +389,12 @@ export default class MageGameScene {
       align: 'center',
       weight: '900',
     });
-    drawPixelText(ctx, '小声飞弹，中声火球，大声陨石', SCREEN.width / 2, rect.y + 74, {
+    drawPixelText(ctx, '提示：小声飞弹，中声火球，大声陨石', SCREEN.width / 2, rect.y + 74, {
       size: 15,
       color: COLORS.textMuted,
       shadow: null,
       align: 'center',
+      maxWidth: rect.w - 36,
     });
     drawPixelText(ctx, `历史最高 ${this.highScore}`, SCREEN.width / 2, rect.y + 104, {
       size: 16,
@@ -393,12 +402,6 @@ export default class MageGameScene {
       shadow: null,
       align: 'center',
       weight: '900',
-    });
-    drawHistoryList(ctx, this.history, {
-      x: rect.x + 18,
-      y: rect.y + 132,
-      w: rect.w - 36,
-      h: 70,
     });
     drawButton(ctx, this.layout.startButton, '开始防守', {
       color: COLORS.purple,
@@ -430,12 +433,6 @@ export default class MageGameScene {
       align: 'center',
       weight: '900',
     });
-    drawHistoryList(ctx, this.history, {
-      x: rect.x + 18,
-      y: rect.y + 166,
-      w: rect.w - 36,
-      h: 62,
-    });
     drawButton(ctx, this.layout.restartButton, '重新防守', {
       color: COLORS.purple,
       pressed: this.pressedId === 'RESTART',
@@ -450,6 +447,10 @@ export default class MageGameScene {
   handleTouchStart(touch) {
     const x = touch.clientX;
     const y = touch.clientY;
+
+    if (this.historyOverlay.handleTouchStart(touch)) {
+      return;
+    }
 
     if (this.settingsOverlay.handleTouchStart(touch)) {
       return;
@@ -481,6 +482,10 @@ export default class MageGameScene {
     const y = touch.clientY;
     const pressedId = this.pressedId;
     this.pressedTimer = 0.12;
+
+    if (this.historyOverlay.handleTouchEnd(touch)) {
+      return;
+    }
 
     if (this.settingsOverlay.handleTouchEnd(touch)) {
       return;

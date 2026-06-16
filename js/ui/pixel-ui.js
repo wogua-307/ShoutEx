@@ -136,6 +136,51 @@ export function drawRoundedPanel(ctx, rect, options = {}) {
   ctx.stroke();
 }
 
+export function drawPixelFrame(ctx, rect, options = {}) {
+  const {
+    fill = 'rgba(7,11,20,0.86)',
+    border = COLORS.cyan,
+    innerBorder = 'rgba(255,255,255,0.12)',
+    pressed = false,
+  } = options;
+  const offset = pressed ? 2 : 0;
+  const x = Math.round(rect.x);
+  const y = Math.round(rect.y + offset);
+  const w = Math.round(rect.w);
+  const h = Math.round(rect.h);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.46)';
+  ctx.fillRect(x + 6, y + 6, w, h);
+
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, w, h);
+
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = innerBorder;
+  ctx.strokeRect(x + 10, y + 10, w - 20, h - 20);
+
+  ctx.fillStyle = border;
+  for (let yy = y + 8; yy < y + h - 8; yy += 8) {
+    ctx.fillRect(x, yy, 5, 4);
+    ctx.fillRect(x + w - 5, yy, 5, 4);
+  }
+  for (let xx = x + 8; xx < x + w - 8; xx += 8) {
+    ctx.fillRect(xx, y, 4, 5);
+    ctx.fillRect(xx, y + h - 5, 4, 5);
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  for (let yy = y + 16; yy < y + h - 12; yy += 14) {
+    ctx.fillRect(x + 14, yy, w - 28, 1);
+  }
+  for (let xx = x + 16; xx < x + w - 12; xx += 14) {
+    ctx.fillRect(xx, y + 14, 1, h - 28);
+  }
+}
+
 export function drawButton(ctx, rect, label, options = {}) {
   const {
     color = COLORS.orange,
@@ -271,6 +316,17 @@ function drawIconGlyph(ctx, icon, x, y, fill) {
   if (icon === 'plus') {
     ctx.fillRect(x + 3, y + 8, 14, 4);
     ctx.fillRect(x + 8, y + 3, 4, 14);
+    return;
+  }
+
+  if (icon === 'history') {
+    ctx.fillRect(x + 4, y + 2, 12, 4);
+    ctx.fillRect(x + 2, y + 4, 4, 12);
+    ctx.fillRect(x + 14, y + 4, 4, 12);
+    ctx.fillRect(x + 4, y + 14, 12, 4);
+    ctx.fillRect(x + 8, y + 6, 4, 6);
+    ctx.fillRect(x + 10, y + 10, 5, 4);
+    ctx.fillRect(x, y + 12, 4, 4);
     return;
   }
 

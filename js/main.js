@@ -61,6 +61,9 @@ export default class Main {
     }, 'MENU');
 
     wx.onTouchStart(this.handleTouchStart.bind(this));
+    if (wx.onTouchMove) {
+      wx.onTouchMove(this.handleTouchMove.bind(this));
+    }
     wx.onTouchEnd(this.handleTouchEnd.bind(this));
 
     if (wx.onHide) {
@@ -114,6 +117,13 @@ export default class Main {
     const touch = this.getTouch(event);
     if (touch) {
       this.sceneManager.handleTouchStart(touch);
+    }
+  }
+
+  handleTouchMove(event) {
+    const touch = this.getTouch(event);
+    if (touch) {
+      this.sceneManager.handleTouchMove(touch);
     }
   }
 

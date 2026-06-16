@@ -5,12 +5,12 @@ import {
   drawIconButton,
   drawMeter,
   drawPanel,
+  drawPixelFrame,
   drawPixelText,
-  drawWrappedText,
   hitTest,
 } from '../ui/pixel-ui.js';
 
-const FEATURED = GAME_MODES[0];
+const FEATURED_GAME = GAME_MODES[0];
 const SECONDARY_GAMES = GAME_MODES.slice(1);
 
 export default class MenuScene {
@@ -25,6 +25,11 @@ export default class MenuScene {
     this.pressedTimer = 0;
     this.time = 0;
     this.settingsOpen = false;
+    this.scrollY = 0;
+    this.scrollMax = 0;
+    this.dragStartY = 0;
+    this.dragLastY = 0;
+    this.dragMoved = false;
     this.layout = {};
   }
 
@@ -36,7 +41,7 @@ export default class MenuScene {
     const w = SCREEN.width;
     const h = SCREEN.height;
     const top = Math.max(18, SCREEN.statusBarHeight, SCREEN.safeTop) + 12;
-    const bottomInset = Math.max(16, SCREEN.safeBottom + 16);
+    const bottomInset = Math.max(4, SCREEN.safeBottom + 4);
     const margin = 16;
     const contentW = w - margin * 2;
     const compact = h < 700;
@@ -58,15 +63,21 @@ export default class MenuScene {
       titleSize = narrow ? 27 : compact ? 29 : 32;
     }
 
-    const titleBottom = top + titleSize + 21;
+    const titleBottom = top + titleSize + 23;
     const headerBottom = Math.max(titleBottom, settingsButton.y + settingsButton.h);
-    const featuredTop = headerBottom + (compact ? 18 : 26);
-    const featuredH = Math.max(tiny ? 132 : 150, Math.min(tiny ? 142 : compact ? 168 : 200, h * (tiny ? 0.24 : 0.26)));
-    const sectionTop = featuredTop + featuredH + (tiny ? 14 : compact ? 20 : 26);
-    const gap = narrow ? 10 : compact ? 12 : 16;
+    const sectionTop = headerBottom + (compact ? 18 : 24);
+    const gap = narrow ? 8 : 12;
+    const gridTop = sectionTop + 34;
+    const featuredH = Math.max(tiny ? 154 : 172, Math.min(tiny ? 168 : compact ? 188 : 210, h * (tiny ? 0.28 : 0.24)));
+    const secondaryTop = gridTop + featuredH + gap;
     const cardW = Math.floor((contentW - gap) / 2);
-    const availableCardH = h - sectionTop - bottomInset - 34;
-    const cardH = Math.max(tiny ? 78 : 86, Math.min(tiny ? 90 : compact ? 98 : 108, (availableCardH - gap) / 2));
+    const cardH = Math.max(tiny ? 154 : 178, Math.min(tiny ? 168 : compact ? 196 : 222, h * (tiny ? 0.27 : compact ? 0.3 : 0.26)));
+    const gridBottom = h - bottomInset;
+    const gridHeight = Math.max(120, gridBottom - gridTop);
+    const secondaryRows = Math.ceil(SECONDARY_GAMES.length / 2);
+    const contentHeight = featuredH + gap + secondaryRows * cardH + Math.max(0, secondaryRows - 1) * gap;
+    this.scrollMax = Math.max(0, contentHeight - gridHeight);
+    this.scrollY = Math.max(0, Math.min(this.scrollY, this.scrollMax));
     const modalW = Math.min(contentW, 340);
     const modalH = compact ? 302 : 326;
     const modalY = Math.max(
@@ -115,26 +126,30 @@ export default class MenuScene {
         w: settingsModal.w - 36,
         h: 44,
       },
-      featured: {
+      sectionTitleY: sectionTop,
+      gridClip: {
         x: margin,
-        y: featuredTop,
+        y: gridTop,
+        w: contentW,
+        h: gridHeight,
+      },
+      featuredCard: {
+        id: FEATURED_GAME.id,
+        game: FEATURED_GAME,
+        x: margin,
+        y: gridTop,
         w: contentW,
         h: featuredH,
+        featured: true,
       },
-      featuredButton: {
-        x: margin + 18,
-        y: featuredTop + featuredH - 58,
-        w: Math.min(170, contentW - 36),
-        h: 44,
-      },
-      sectionTitleY: sectionTop,
       cards: SECONDARY_GAMES.map((game, index) => ({
         id: game.id,
         game,
         x: margin + (index % 2) * (cardW + gap),
-        y: sectionTop + 32 + Math.floor(index / 2) * (cardH + gap),
+        y: secondaryTop + Math.floor(index / 2) * (cardH + gap),
         w: cardW,
         h: cardH,
+        featured: false,
       })),
     };
   }
@@ -162,7 +177,6 @@ export default class MenuScene {
 
     this.drawBackground(ctx);
     this.drawHeader(ctx, audioState);
-    this.drawFeatured(ctx);
     this.drawGameGrid(ctx);
 
     if (this.settingsOpen) {
@@ -215,57 +229,6 @@ export default class MenuScene {
     });
   }
 
-  drawFeatured(ctx) {
-    const rect = this.layout.featured;
-    const button = this.layout.featuredButton;
-    const pressed = this.pressedId === FEATURED.id || this.pressedId === 'FEATURED';
-
-    drawPanel(ctx, rect, {
-      fill: COLORS.panel,
-      border: FEATURED.accent,
-      shadowOffset: 6,
-    });
-
-    const iconSize = Math.min(rect.h * 0.58, 120);
-    const iconX = rect.x + rect.w - iconSize - 18;
-    const iconY = rect.y + rect.h / 2 - iconSize / 2 + Math.sin(this.time * 5) * 3;
-
-    drawPixelText(ctx, '今日开吼', rect.x + 18, rect.y + 16, {
-      size: 13,
-      color: COLORS.yellow,
-      shadow: null,
-    });
-    drawPixelText(ctx, FEATURED.title, rect.x + 18, rect.y + 40, {
-      size: this.layout.compact ? 26 : 30,
-      color: COLORS.text,
-      shadow: FEATURED.accent,
-      weight: '900',
-    });
-    drawWrappedText(ctx, FEATURED.description, rect.x + 18, rect.y + 78, rect.w - iconSize - 52, 20, {
-      size: 15,
-      color: COLORS.textMuted,
-      weight: '700',
-    });
-
-    this.drawSoundBursts(ctx, iconX - 16, iconY + iconSize * 0.45, FEATURED.accent);
-    drawGameIcon(ctx, FEATURED.id, iconX, iconY, iconSize, FEATURED.accent);
-
-    drawButton(ctx, button, '开始挑战', {
-      color: FEATURED.accent,
-      pressed,
-    });
-  }
-
-  drawSoundBursts(ctx, x, y, color) {
-    const pulse = 1 + Math.sin(this.time * 8) * 0.25;
-    ctx.fillStyle = color;
-    ctx.globalAlpha = 0.55;
-    ctx.fillRect(x, y - 18 * pulse, 8, 8);
-    ctx.fillRect(x - 14, y - 4, 10, 10);
-    ctx.fillRect(x, y + 12 * pulse, 6, 6);
-    ctx.globalAlpha = 1;
-  }
-
   drawGameGrid(ctx) {
     drawPixelText(ctx, '选择玩法', this.layout.margin, this.layout.sectionTitleY, {
       size: 18,
@@ -274,46 +237,189 @@ export default class MenuScene {
       weight: '900',
     });
 
-    this.layout.cards.forEach((card) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(this.layout.gridClip.x - 8, this.layout.gridClip.y - 6, this.layout.gridClip.w + 16, this.layout.gridClip.h + 10);
+    ctx.clip();
+
+    [this.layout.featuredCard, ...this.layout.cards].forEach((card) => {
       this.drawGameCard(ctx, card);
     });
+
+    ctx.restore();
   }
 
   drawGameCard(ctx, card) {
     const pressed = this.pressedId === card.id;
-    const y = card.y + (pressed ? 2 : 0);
+    const y = card.y - this.scrollY;
+    if (y + card.h < this.layout.gridClip.y - 8 || y > this.layout.gridClip.y + this.layout.gridClip.h + 8) {
+      return;
+    }
 
-    drawPanel(ctx, {
+    const rect = {
       x: card.x,
-      y,
+      y: y + (pressed ? 2 : 0),
       w: card.w,
       h: card.h,
-    }, {
-      fill: COLORS.panelDark,
+    };
+    const compact = this.layout.compact || card.w < 164;
+    const featured = !!card.featured;
+    const pad = compact ? 18 : 22;
+    const tag = this.getGameTag(card.game.id);
+    const meta = this.getGameMeta(card.game.id);
+    const titleSize = featured ? (compact ? 22 : 26) : (compact ? 17 : 20);
+    const descSize = featured ? (compact ? 14 : 16) : (compact ? 12 : 14);
+    const iconSize = featured ? (compact ? 46 : 56) : (compact ? 28 : 34);
+
+    drawPixelFrame(ctx, rect, {
+      fill: pressed ? 'rgba(15,23,42,0.96)' : 'rgba(7,11,20,0.88)',
       border: card.game.accent,
-      shadowOffset: pressed ? 2 : 4,
+      pressed,
     });
 
-    const compact = this.layout.compact || card.w < 158;
-    const iconSize = Math.min(compact ? 42 : 48, card.h - 30);
-    const textX = card.x + iconSize + 22;
-    const textW = Math.max(32, card.x + card.w - textX - 10);
+    if (featured) {
+      this.drawFeaturedGameCardContent(ctx, rect, card, meta, tag, {
+        pad,
+        iconSize,
+        titleSize,
+        descSize,
+        compact,
+      });
+      return;
+    }
 
-    drawGameIcon(ctx, card.game.id, card.x + 10, y + Math.max(12, (card.h - iconSize) / 2), iconSize, card.game.accent);
-    drawPixelText(ctx, card.game.shortTitle, textX, y + (compact ? 12 : 14), {
-      size: compact ? 16 : 18,
+    const titleY = rect.y + pad + iconSize + (compact ? 22 : 26);
+    const descY = titleY + titleSize + 12;
+    const footerY = descY + descSize + (compact ? 30 : 32);
+    const startY = footerY + (compact ? 22 : 24);
+
+    drawGameIcon(ctx, card.game.id, rect.x + pad, rect.y + pad + 2, iconSize, card.game.accent);
+    drawPixelText(ctx, `[ ${tag} ]`, rect.x + rect.w - pad, rect.y + pad + 1, {
+      size: compact ? 12 : 13,
+      color: COLORS.cyan,
+      shadow: null,
+      align: 'right',
+      weight: '900',
+      maxWidth: rect.w - pad * 2 - iconSize - 10,
+    });
+    drawPixelText(ctx, meta.title, rect.x + pad, titleY, {
+      size: titleSize,
       color: COLORS.text,
-      shadow: card.game.accent,
+      shadow: 'rgba(255,255,255,0.22)',
+      weight: '900',
+      maxWidth: rect.w - pad * 2,
+    });
+    drawPixelText(ctx, meta.desc, rect.x + pad, descY, {
+      size: descSize,
+      color: COLORS.textMuted,
+      shadow: null,
+      weight: '700',
+      maxWidth: rect.w - pad * 2,
+    });
+
+    ctx.fillStyle = 'rgba(148,163,184,0.12)';
+    ctx.fillRect(rect.x + pad, footerY - 12, rect.w - pad * 2, 2);
+    drawPixelText(ctx, '难度:', rect.x + pad, footerY, {
+      size: compact ? 12 : 13,
+      color: COLORS.textMuted,
+      shadow: null,
+      weight: '700',
+      maxWidth: 42,
+    });
+    drawPixelText(ctx, meta.stars, rect.x + pad + (compact ? 42 : 48), footerY, {
+      size: compact ? 12 : 13,
+      color: COLORS.textMuted,
+      shadow: null,
+      weight: '700',
+    });
+    drawPixelText(ctx, 'START ▷', rect.x + rect.w - pad, startY, {
+      size: compact ? 13 : 14,
+      color: COLORS.yellow,
+      shadow: null,
+      align: 'right',
+      weight: '900',
+    });
+  }
+
+  drawFeaturedGameCardContent(ctx, rect, card, meta, tag, metrics) {
+    const { pad, iconSize, titleSize, descSize, compact } = metrics;
+    const iconX = rect.x + pad;
+    const iconY = rect.y + pad + 8;
+    const textX = iconX + iconSize + (compact ? 16 : 20);
+    const textW = Math.max(80, rect.x + rect.w - textX - pad);
+    const titleY = rect.y + pad + 8;
+    const descY = titleY + titleSize + 14;
+    const footerY = rect.y + rect.h - (compact ? 48 : 54);
+
+    drawGameIcon(ctx, card.game.id, iconX, iconY, iconSize, card.game.accent);
+    drawPixelText(ctx, `[ ${tag} ]`, rect.x + rect.w - pad, rect.y + pad + 1, {
+      size: compact ? 13 : 14,
+      color: COLORS.cyan,
+      shadow: null,
+      align: 'right',
+      weight: '900',
+      maxWidth: Math.max(62, textW - 12),
+    });
+    drawPixelText(ctx, meta.title, textX, titleY, {
+      size: titleSize,
+      color: COLORS.text,
+      shadow: 'rgba(255,255,255,0.22)',
       weight: '900',
       maxWidth: textW,
     });
-    drawPixelText(ctx, card.game.description, textX, y + (compact ? 38 : 42), {
-      size: compact ? 11 : 12,
+    drawPixelText(ctx, meta.desc, textX, descY, {
+      size: descSize,
       color: COLORS.textMuted,
       shadow: null,
       weight: '700',
       maxWidth: textW,
     });
+
+    ctx.fillStyle = 'rgba(148,163,184,0.12)';
+    ctx.fillRect(rect.x + pad, footerY - 12, rect.w - pad * 2, 2);
+    drawPixelText(ctx, '难度:', rect.x + pad, footerY, {
+      size: compact ? 12 : 13,
+      color: COLORS.textMuted,
+      shadow: null,
+      weight: '700',
+    });
+    drawPixelText(ctx, meta.stars, rect.x + pad + (compact ? 42 : 48), footerY, {
+      size: compact ? 12 : 13,
+      color: COLORS.textMuted,
+      shadow: null,
+      weight: '700',
+    });
+    drawPixelText(ctx, 'START ▷', rect.x + rect.w - pad, footerY, {
+      size: compact ? 13 : 14,
+      color: COLORS.yellow,
+      shadow: null,
+      align: 'right',
+      weight: '900',
+    });
+  }
+
+  getGameTag(gameId) {
+    if (gameId === 'SCREAM_BIRD') return '最热';
+    if (gameId === 'SPRINT') return '挑战';
+    if (gameId === 'ROCKET') return '冲高';
+    if (gameId === 'PUNCH') return '解压';
+    return '硬核';
+  }
+
+  getGameMeta(gameId) {
+    if (gameId === 'SCREAM_BIRD') {
+      return { title: '尖叫小鸟', desc: '经典：声能避障飞翔', stars: '★★☆' };
+    }
+    if (gameId === 'SPRINT') {
+      return { title: '赛车狂飙', desc: '竞速：声控极速冲刺', stars: '★★☆' };
+    }
+    if (gameId === 'ROCKET') {
+      return { title: '声波火箭', desc: '冲高：峰值决定高度', stars: '★★☆' };
+    }
+    if (gameId === 'PUNCH') {
+      return { title: '限时发泄馆', desc: '爆破：解压碎裂玻璃', stars: '★★☆' };
+    }
+    return { title: '声控防守法师', desc: '塔防：吟唱奥术火球', stars: '★★★' };
   }
 
   drawToast(ctx) {
@@ -420,6 +526,9 @@ export default class MenuScene {
   handleTouchStart(touch) {
     const x = touch.clientX;
     const y = touch.clientY;
+    this.dragStartY = y;
+    this.dragLastY = y;
+    this.dragMoved = false;
 
     if (this.settingsOpen) {
       if (hitTest(this.layout.settingsCloseButton, x, y)) {
@@ -448,15 +557,33 @@ export default class MenuScene {
       return;
     }
 
-    if (hitTest(this.layout.featured, x, y)) {
-      this.press(FEATURED.id);
-      return;
-    }
-
-    const card = this.layout.cards.find((item) => hitTest(item, x, y));
+    const card = [this.layout.featuredCard, ...this.layout.cards].find((item) => this.hitTestScrolledCard(item, x, y));
     if (card) {
       this.press(card.id);
     }
+  }
+
+  handleTouchMove(touch) {
+    if (this.settingsOpen || this.scrollMax <= 0) {
+      return;
+    }
+
+    const x = touch.clientX;
+    const y = touch.clientY;
+    if (!hitTest(this.layout.gridClip, x, y)) {
+      this.dragLastY = y;
+      return;
+    }
+
+    const deltaY = y - this.dragLastY;
+    this.dragLastY = y;
+
+    if (Math.abs(y - this.dragStartY) > 6) {
+      this.dragMoved = true;
+      this.pressedId = '';
+    }
+
+    this.scrollY = Math.max(0, Math.min(this.scrollMax, this.scrollY - deltaY));
   }
 
   handleTouchEnd(touch) {
@@ -496,15 +623,28 @@ export default class MenuScene {
       return;
     }
 
-    if (pressedId === FEATURED.id && hitTest(this.layout.featured, x, y)) {
-      this.enterGame(FEATURED.id);
+    if (this.dragMoved) {
+      this.dragMoved = false;
       return;
     }
 
-    const card = this.layout.cards.find((item) => pressedId === item.id && hitTest(item, x, y));
+    const card = [this.layout.featuredCard, ...this.layout.cards].find((item) => pressedId === item.id && this.hitTestScrolledCard(item, x, y));
     if (card) {
       this.enterGame(card.id);
     }
+  }
+
+  hitTestScrolledCard(card, x, y) {
+    if (!hitTest(this.layout.gridClip, x, y)) {
+      return false;
+    }
+
+    return hitTest({
+      x: card.x,
+      y: card.y - this.scrollY,
+      w: card.w,
+      h: card.h,
+    }, x, y);
   }
 
   toggleMicrophone() {

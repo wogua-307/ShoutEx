@@ -9,7 +9,7 @@ import {
   hitTest,
 } from '../ui/pixel-ui.js';
 import GameSettingsOverlay from '../ui/game-settings-overlay.js';
-import { drawHistoryList } from '../ui/history-panel.js';
+import HistoryOverlay from '../ui/history-overlay.js';
 import { addGameHistory, getGameHistory } from '../core/game-history.js';
 import { getHighScore, setHighScore } from '../core/storage.js';
 
@@ -28,6 +28,11 @@ export default class SprintGameScene {
     this.music = options.music;
     this.goToMenu = options.goToMenu;
     this.settingsOverlay = new GameSettingsOverlay(this.settings, this.music);
+    this.historyOverlay = new HistoryOverlay({
+      title: '十秒狂飙',
+      accent: COLORS.cyan,
+      getHistory: () => this.history,
+    });
     this.phase = PHASE.START;
     this.time = 0;
     this.timeLeft = 10;
@@ -62,7 +67,8 @@ export default class SprintGameScene {
       menuButton: { x: margin, y: bottom - 56, w: SCREEN.width - margin * 2, h: 44 },
       meter: { x: margin, y: top + 54, w: SCREEN.width - margin * 2, h: 54 },
     };
-    this.settingsOverlay.setTopControls(top, margin);
+    this.historyOverlay.setTopControls(top, margin, 56);
+    this.settingsOverlay.setTopControls(top, margin + 56);
   }
 
   resetRun() {
@@ -118,6 +124,7 @@ export default class SprintGameScene {
     }
 
     this.settingsOverlay.drawModal(ctx);
+    this.historyOverlay.drawModal(ctx);
   }
 
   drawWorld(ctx) {
@@ -172,6 +179,7 @@ export default class SprintGameScene {
       pressed: this.pressedId === 'BACK',
     });
     this.settingsOverlay.drawButton(ctx);
+    this.historyOverlay.drawButton(ctx);
 
     if (this.phase === PHASE.PLAYING) {
       drawPixelText(ctx, `${Math.ceil(this.timeLeft)}s`, this.layout.margin, this.layout.top + 62, {
@@ -217,11 +225,12 @@ export default class SprintGameScene {
       align: 'center',
       weight: '900',
     });
-    drawPixelText(ctx, '10秒内持续输出，跑出最远距离', SCREEN.width / 2, rect.y + 74, {
+    drawPixelText(ctx, '提示：10秒内持续发声，声音越稳速度越快', SCREEN.width / 2, rect.y + 74, {
       size: 15,
       color: COLORS.textMuted,
       shadow: null,
       align: 'center',
+      maxWidth: rect.w - 36,
     });
     drawPixelText(ctx, `历史最远 ${this.highScore}m`, SCREEN.width / 2, rect.y + 104, {
       size: 16,
@@ -229,12 +238,6 @@ export default class SprintGameScene {
       shadow: null,
       align: 'center',
       weight: '900',
-    });
-    drawHistoryList(ctx, this.history, {
-      x: rect.x + 18,
-      y: rect.y + 132,
-      w: rect.w - 36,
-      h: 70,
     });
     drawButton(ctx, this.layout.startButton, '开始冲刺', {
       color: COLORS.cyan,
@@ -266,12 +269,6 @@ export default class SprintGameScene {
       align: 'center',
       weight: '900',
     });
-    drawHistoryList(ctx, this.history, {
-      x: rect.x + 18,
-      y: rect.y + 166,
-      w: rect.w - 36,
-      h: 62,
-    });
     drawButton(ctx, this.layout.restartButton, '再跑一次', {
       color: COLORS.cyan,
       pressed: this.pressedId === 'RESTART',
@@ -286,6 +283,10 @@ export default class SprintGameScene {
   handleTouchStart(touch) {
     const x = touch.clientX;
     const y = touch.clientY;
+
+    if (this.historyOverlay.handleTouchStart(touch)) {
+      return;
+    }
 
     if (this.settingsOverlay.handleTouchStart(touch)) {
       return;
@@ -317,6 +318,10 @@ export default class SprintGameScene {
     const y = touch.clientY;
     const pressedId = this.pressedId;
     this.pressedTimer = 0.12;
+
+    if (this.historyOverlay.handleTouchEnd(touch)) {
+      return;
+    }
 
     if (this.settingsOverlay.handleTouchEnd(touch)) {
       return;
