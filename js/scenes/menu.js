@@ -68,7 +68,7 @@ export default class MenuScene {
     const sectionTop = headerBottom + (compact ? 18 : 24);
     const gap = narrow ? 8 : 12;
     const gridTop = sectionTop + 34;
-    const featuredH = Math.max(tiny ? 154 : 172, Math.min(tiny ? 168 : compact ? 188 : 210, h * (tiny ? 0.28 : 0.24)));
+    const featuredH = Math.max(tiny ? 138 : 154, Math.min(tiny ? 150 : compact ? 168 : 184, h * (tiny ? 0.23 : 0.2)));
     const secondaryTop = gridTop + featuredH + gap;
     const cardW = Math.floor((contentW - gap) / 2);
     const cardH = Math.max(tiny ? 154 : 178, Math.min(tiny ? 168 : compact ? 196 : 222, h * (tiny ? 0.27 : compact ? 0.3 : 0.26)));
@@ -293,7 +293,7 @@ export default class MenuScene {
     const footerY = descY + descSize + (compact ? 30 : 32);
     const startY = footerY + (compact ? 22 : 24);
 
-    drawGameIcon(ctx, card.game.id, rect.x + pad, rect.y + pad + 2, iconSize, card.game.accent);
+    this.drawAnimatedGameIcon(ctx, card.game.id, rect.x + pad, rect.y + pad + 2, iconSize, card.game.accent, false);
     drawPixelText(ctx, `[ ${tag} ]`, rect.x + rect.w - pad, rect.y + pad + 1, {
       size: compact ? 12 : 13,
       color: COLORS.cyan,
@@ -351,7 +351,7 @@ export default class MenuScene {
     const descY = titleY + titleSize + 14;
     const footerY = rect.y + rect.h - (compact ? 48 : 54);
 
-    drawGameIcon(ctx, card.game.id, iconX, iconY, iconSize, card.game.accent);
+    this.drawAnimatedGameIcon(ctx, card.game.id, iconX, iconY, iconSize, card.game.accent, true);
     drawPixelText(ctx, `[ ${tag} ]`, rect.x + rect.w - pad, rect.y + pad + 1, {
       size: compact ? 13 : 14,
       color: COLORS.cyan,
@@ -396,6 +396,66 @@ export default class MenuScene {
       align: 'right',
       weight: '900',
     });
+  }
+
+  drawAnimatedGameIcon(ctx, gameId, x, y, size, color, featured = false) {
+    if (!this.isIconAnimated(gameId)) {
+      drawGameIcon(ctx, gameId, x, y, size, color);
+      return;
+    }
+
+    const step = Math.floor(this.time * 8);
+    const unit = size / 12;
+    let dx = 0;
+    let dy = 0;
+
+    if (gameId === 'SCREAM_BIRD') {
+      dx = [0, 1, 0, -1][step % 4];
+      dy = [0, -2, 0, 2][step % 4];
+      this.drawIconPixel(ctx, x + size + unit * 0.7, y + unit * 3.2 + dy, unit * 0.8, COLORS.cyan, 0.65);
+      this.drawIconPixel(ctx, x + size + unit * 1.7, y + unit * 5 + dy, unit * 0.65, COLORS.cyan, 0.42);
+    } else if (gameId === 'SPRINT') {
+      dx = [0, 2, 0, -1][step % 4];
+      dy = step % 2;
+      this.drawIconPixel(ctx, x - unit * 1.2, y + size * 0.72, unit * 0.8, COLORS.cyan, 0.55);
+      this.drawIconPixel(ctx, x - unit * 2.1, y + size * 0.8, unit * 0.55, COLORS.textMuted, 0.4);
+    } else if (gameId === 'ROCKET') {
+      dy = [2, 0, -2, 0][step % 4];
+      this.drawIconPixel(ctx, x + unit * 5.1, y + size + unit * 0.1, unit * 1.4, COLORS.yellow, 0.82);
+      this.drawIconPixel(ctx, x + unit * 5.4, y + size + unit * 1.2, unit, COLORS.orange, 0.62);
+    } else if (gameId === 'PUNCH') {
+      dy = [0, -1, 0, 1][step % 4];
+      this.drawIconPixel(ctx, x + size * 0.82, y + unit * 0.8, unit * 0.75, COLORS.blue, 0.58);
+      this.drawIconPixel(ctx, x + size * 0.15, y + size * 0.78, unit * 0.65, COLORS.yellow, 0.5);
+    } else {
+      dy = [0, -1, 0, 1][step % 4];
+      this.drawIconPixel(ctx, x + size * 0.82, y + unit * 0.3, unit * 0.8, COLORS.cyan, 0.7);
+      this.drawIconPixel(ctx, x + size * 0.94, y + unit * 1.7, unit * 0.55, COLORS.yellow, 0.55);
+    }
+
+    drawGameIcon(ctx, gameId, x + dx, y + dy, size + (featured && step % 6 === 0 ? 1 : 0), color);
+  }
+
+  isIconAnimated(gameId) {
+    const ids = GAME_MODES.map((game) => game.id);
+    const windowIndex = Math.floor(this.time / 1.7);
+    const seed = (windowIndex * 1103515245 + 12345) >>> 0;
+    const first = seed % ids.length;
+    const count = (seed >> 8) % 3 === 0 ? 2 : 1;
+
+    if (gameId === ids[first]) {
+      return true;
+    }
+
+    return count === 2 && gameId === ids[(first + 2 + ((seed >> 16) % (ids.length - 1))) % ids.length];
+  }
+
+  drawIconPixel(ctx, x, y, size, color, alpha = 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(size)), Math.max(1, Math.round(size)));
+    ctx.restore();
   }
 
   getGameTag(gameId) {
