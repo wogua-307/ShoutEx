@@ -4,6 +4,9 @@ import SceneManager from './core/scene-manager.js';
 import AudioLevelService from './services/audio-level.js';
 import MenuScene from './scenes/menu.js';
 import ScreamBirdScene from './scenes/scream-bird.js';
+import SprintGameScene from './scenes/sprint-game.js';
+import RocketGameScene from './scenes/rocket-game.js';
+import PunchGameScene from './scenes/punch-game.js';
 
 const ctx = canvas.getContext('2d');
 
@@ -22,6 +25,18 @@ export default class Main {
         audio: this.audio,
         goToMenu: () => this.sceneManager.goTo('MENU'),
       }),
+      SPRINT: new SprintGameScene({
+        audio: this.audio,
+        goToMenu: () => this.sceneManager.goTo('MENU'),
+      }),
+      ROCKET: new RocketGameScene({
+        audio: this.audio,
+        goToMenu: () => this.sceneManager.goTo('MENU'),
+      }),
+      PUNCH: new PunchGameScene({
+        audio: this.audio,
+        goToMenu: () => this.sceneManager.goTo('MENU'),
+      }),
     }, 'MENU');
 
     wx.onTouchStart(this.handleTouchStart.bind(this));
@@ -36,9 +51,9 @@ export default class Main {
   }
 
   goToGame(gameId) {
-    if (gameId === 'SCREAM_BIRD') {
+    if (this.sceneManager.scenes[gameId]) {
       this.audio.start();
-      this.sceneManager.goTo('SCREAM_BIRD');
+      this.sceneManager.goTo(gameId);
     }
   }
 

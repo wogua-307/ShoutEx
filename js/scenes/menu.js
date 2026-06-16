@@ -332,7 +332,12 @@ export default class MenuScene {
 
     const card = this.layout.cards.find((item) => pressedId === item.id && hitTest(item, x, y));
     if (card) {
-      this.showToast(`${card.game.shortTitle}玩法迁移中`);
+      if (card.id === 'MAGE') {
+        this.showToast(`${card.game.shortTitle}玩法迁移中`);
+        return;
+      }
+
+      this.goToGame(card.id);
     }
   }
 
