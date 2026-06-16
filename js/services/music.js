@@ -3,7 +3,7 @@ const BIRD_TRACK = 'audio/bird.mp3';
 const GAME_TRACKS = [
   'audio/jiepai.mp3',
 ];
-const HOME_VOLUME = 0.28;
+const HOME_VOLUME = 0.4;
 
 export default class MusicService {
   constructor(settings) {

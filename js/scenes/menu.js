@@ -79,7 +79,7 @@ export default class MenuScene {
     this.scrollMax = Math.max(0, contentHeight - gridHeight);
     this.scrollY = Math.max(0, Math.min(this.scrollY, this.scrollMax));
     const modalW = Math.min(contentW, 340);
-    const modalH = compact ? 302 : 326;
+    const modalH = compact ? 334 : 358;
     const modalY = Math.max(
       top + 54,
       Math.min(Math.round((h - modalH) / 2), h - bottomInset - modalH)
@@ -116,13 +116,13 @@ export default class MenuScene {
       },
       settingsMeter: {
         x: settingsModal.x + 18,
-        y: settingsModal.y + 190,
+        y: settingsModal.y + 224,
         w: settingsModal.w - 36,
         h: compact ? 58 : 64,
       },
       settingsBgmButton: {
         x: settingsModal.x + 18,
-        y: settingsModal.y + 130,
+        y: settingsModal.y + 158,
         w: settingsModal.w - 36,
         h: 44,
       },
@@ -489,7 +489,7 @@ export default class MenuScene {
     });
     drawPixelMic(ctx, micButton.x + 10, micButton.y + 10 + (this.pressedId === 'SETTINGS_MIC' ? 2 : 0), 24, COLORS.bgDeep);
 
-    drawPixelText(ctx, '背景音乐', modal.x + 18, modal.y + 112, {
+    drawPixelText(ctx, '背景音乐', modal.x + 18, modal.y + 136, {
       size: 13,
       color: COLORS.textMuted,
       shadow: null,
