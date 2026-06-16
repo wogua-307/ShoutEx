@@ -7,15 +7,19 @@ const safeArea = systemInfo.safeArea || {
   left: 0,
   right: SCREEN_WIDTH,
 };
+const menuButton = wx.getMenuButtonBoundingClientRect ? wx.getMenuButtonBoundingClientRect() : null;
 
 export const SCREEN = {
   width: SCREEN_WIDTH,
   height: SCREEN_HEIGHT,
   pixelRatio: systemInfo.pixelRatio || 1,
+  statusBarHeight: systemInfo.statusBarHeight || safeArea.top || 0,
   safeTop: safeArea.top || 0,
   safeBottom: SCREEN_HEIGHT - (safeArea.bottom || SCREEN_HEIGHT),
   safeLeft: safeArea.left || 0,
   safeRight: SCREEN_WIDTH - (safeArea.right || SCREEN_WIDTH),
+  menuButton,
+  contentTop: menuButton ? Math.max(safeArea.top || 0, menuButton.bottom) : safeArea.top || 0,
 };
 
 export const COLORS = {

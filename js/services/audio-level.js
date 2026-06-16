@@ -1,5 +1,6 @@
 export default class AudioLevelService {
-  constructor() {
+  constructor(settings) {
+    this.settings = settings;
     this.level = 0;
     this.rawLevel = 0;
     this.isRecording = false;
@@ -9,9 +10,39 @@ export default class AudioLevelService {
     this.recorder = null;
     this.usePreview = false;
     this.hasFrame = false;
+    this.shouldRecord = false;
+    this.permissionReady = false;
+  }
+
+  async refreshPermissionStatus() {
+    if (!wx.getSetting) {
+      this.permissionReady = true;
+      return this.permission;
+    }
+
+    return new Promise((resolve) => {
+      wx.getSetting({
+        success: (result) => {
+          const authSetting = result.authSetting || {};
+          if (authSetting['scope.record']) {
+            this.permission = 'granted';
+          } else if (authSetting['scope.record'] === false) {
+            this.permission = 'denied';
+          }
+          this.permissionReady = true;
+          resolve(this.permission);
+        },
+        fail: () => {
+          this.permissionReady = true;
+          resolve(this.permission);
+        },
+      });
+    });
   }
 
   start() {
+    this.shouldRecord = true;
+
     if (this.isRecording) {
       return Promise.resolve(true);
     }
@@ -49,7 +80,7 @@ export default class AudioLevelService {
         }
       };
 
-      if (!wx.authorize) {
+      if (!wx.authorize || this.permission === 'granted') {
         beginRecord();
         return;
       }
@@ -69,6 +100,51 @@ export default class AudioLevelService {
   }
 
   stop() {
+    this.shouldRecord = false;
+    this.stopRecorder();
+    this.level = 0;
+    this.rawLevel = 0;
+  }
+
+  pause() {
+    this.stopRecorder();
+  }
+
+  resume() {
+    if (this.shouldRecord) {
+      this.start();
+    }
+  }
+
+  openSetting() {
+    if (!wx.openSetting) {
+      this.error = '请在微信设置中开启麦克风权限';
+      return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+      wx.openSetting({
+        success: (result) => {
+          const granted = !!(result.authSetting && result.authSetting['scope.record']);
+          this.permission = granted ? 'granted' : 'denied';
+
+          if (granted) {
+            this.start().then(resolve);
+            return;
+          }
+
+          this.error = '未获得麦克风权限，请在设置中开启后重试';
+          resolve(false);
+        },
+        fail: () => {
+          this.error = '无法打开设置，请手动开启麦克风权限';
+          resolve(false);
+        },
+      });
+    });
+  }
+
+  stopRecorder() {
     if (this.recorder && this.isRecording) {
       try {
         this.recorder.stop();
@@ -78,8 +154,6 @@ export default class AudioLevelService {
     }
 
     this.isRecording = false;
-    this.level = 0;
-    this.rawLevel = 0;
   }
 
   update(dt) {
@@ -89,7 +163,9 @@ export default class AudioLevelService {
       this.rawLevel = Math.max(0, Math.min(100, Math.round(base)));
     }
 
-    const gated = this.rawLevel < 3 ? 0 : this.rawLevel;
+    const multiplier = this.settings ? this.settings.getVoiceMultiplier() : 1;
+    const adjusted = Math.min(100, Math.round(this.rawLevel * multiplier));
+    const gated = adjusted < 3 ? 0 : adjusted;
     this.level = Math.round(this.level * 0.78 + gated * 0.22);
   }
 
@@ -100,6 +176,7 @@ export default class AudioLevelService {
       isRecording: this.isRecording,
       permission: this.permission,
       error: this.error,
+      canOpenSetting: this.permission === 'denied',
     };
   }
 

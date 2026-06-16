@@ -1,11 +1,15 @@
 import { COLORS, SCREEN } from '../core/constants.js';
 import {
+  drawBackIconButton,
   drawButton,
   drawMeter,
   drawPanel,
   drawPixelText,
   hitTest,
 } from '../ui/pixel-ui.js';
+import GameSettingsOverlay from '../ui/game-settings-overlay.js';
+import { drawHistoryList } from '../ui/history-panel.js';
+import { addGameHistory, getGameHistory } from '../core/game-history.js';
 import { getHighScore, setHighScore } from '../core/storage.js';
 
 const PHASE = {
@@ -20,7 +24,10 @@ const STORAGE_KEY = 'shoutex.highScore.punch';
 export default class PunchGameScene {
   constructor(options) {
     this.audio = options.audio;
+    this.settings = options.settings;
+    this.music = options.music;
     this.goToMenu = options.goToMenu;
+    this.settingsOverlay = new GameSettingsOverlay(this.settings, this.music);
     this.phase = PHASE.START;
     this.time = 0;
     this.timeLeft = 5;
@@ -29,6 +36,7 @@ export default class PunchGameScene {
     this.frames = 0;
     this.damage = 0;
     this.highScore = 0;
+    this.history = [];
     this.animTime = 0;
     this.targetOffset = 0;
     this.beamWidth = 0;
@@ -39,6 +47,7 @@ export default class PunchGameScene {
 
   onEnter() {
     this.highScore = getHighScore(STORAGE_KEY);
+    this.history = getGameHistory('PUNCH');
     this.phase = PHASE.START;
     this.computeLayout();
     this.resetRun();
@@ -52,12 +61,13 @@ export default class PunchGameScene {
     this.layout = {
       top,
       margin,
-      backButton: { x: margin, y: top, w: 94, h: 44 },
+      backButton: { x: margin, y: top, w: 48, h: 44 },
       startButton: { x: margin, y: bottom - 58, w: SCREEN.width - margin * 2, h: 48 },
       restartButton: { x: margin, y: bottom - 112, w: SCREEN.width - margin * 2, h: 48 },
       menuButton: { x: margin, y: bottom - 56, w: SCREEN.width - margin * 2, h: 44 },
       meter: { x: margin, y: top + 54, w: SCREEN.width - margin * 2, h: 54 },
     };
+    this.settingsOverlay.setTopControls(top, margin);
   }
 
   resetRun() {
@@ -102,6 +112,7 @@ export default class PunchGameScene {
       const average = this.frames > 0 ? this.sum / this.frames : 0;
       this.damage = Math.floor(this.peak * 100 + average * 150);
       this.highScore = setHighScore(STORAGE_KEY, this.damage);
+      this.history = addGameHistory('PUNCH', `伤害 ${this.damage}`);
       this.phase = PHASE.ANIMATING;
     }
   }
@@ -129,6 +140,8 @@ export default class PunchGameScene {
     } else if (this.phase === PHASE.GAMEOVER) {
       this.drawGameOverOverlay(ctx);
     }
+
+    this.settingsOverlay.drawModal(ctx);
   }
 
   drawWorld(ctx) {
@@ -207,11 +220,12 @@ export default class PunchGameScene {
   }
 
   drawHud(ctx) {
-    drawButton(ctx, this.layout.backButton, '返回', {
+    drawBackIconButton(ctx, this.layout.backButton, {
       color: COLORS.panel,
-      textColor: COLORS.text,
+      iconColor: COLORS.text,
       pressed: this.pressedId === 'BACK',
     });
+    this.settingsOverlay.drawButton(ctx);
 
     if (this.phase === PHASE.CHARGING) {
       drawPixelText(ctx, `${this.timeLeft.toFixed(1)}s`, SCREEN.width / 2, this.layout.top + 70, {
@@ -234,7 +248,7 @@ export default class PunchGameScene {
   }
 
   drawStartOverlay(ctx) {
-    const rect = { x: 20, y: SCREEN.height * 0.3, w: SCREEN.width - 40, h: 232 };
+    const rect = { x: 20, y: SCREEN.height * 0.28, w: SCREEN.width - 40, h: 262 };
     drawPanel(ctx, rect, { fill: COLORS.panel, border: COLORS.blue, shadowOffset: 6 });
     drawPixelText(ctx, '分贝发泄馆', SCREEN.width / 2, rect.y + 24, {
       size: 31,
@@ -256,6 +270,12 @@ export default class PunchGameScene {
       align: 'center',
       weight: '900',
     });
+    drawHistoryList(ctx, this.history, {
+      x: rect.x + 18,
+      y: rect.y + 132,
+      w: rect.w - 36,
+      h: 70,
+    });
     drawButton(ctx, this.layout.startButton, '准备发泄', {
       color: COLORS.blue,
       pressed: this.pressedId === 'START',
@@ -263,7 +283,7 @@ export default class PunchGameScene {
   }
 
   drawGameOverOverlay(ctx) {
-    const rect = { x: 20, y: SCREEN.height * 0.28, w: SCREEN.width - 40, h: 250 };
+    const rect = { x: 20, y: SCREEN.height * 0.25, w: SCREEN.width - 40, h: 280 };
     drawPanel(ctx, rect, { fill: COLORS.panel, border: COLORS.blue, shadowOffset: 6 });
     drawPixelText(ctx, '绝杀成功', SCREEN.width / 2, rect.y + 24, {
       size: 32,
@@ -286,6 +306,12 @@ export default class PunchGameScene {
       align: 'center',
       weight: '900',
     });
+    drawHistoryList(ctx, this.history, {
+      x: rect.x + 18,
+      y: rect.y + 166,
+      w: rect.w - 36,
+      h: 62,
+    });
     drawButton(ctx, this.layout.restartButton, '再次发泄', {
       color: COLORS.blue,
       pressed: this.pressedId === 'RESTART',
@@ -300,6 +326,10 @@ export default class PunchGameScene {
   handleTouchStart(touch) {
     const x = touch.clientX;
     const y = touch.clientY;
+
+    if (this.settingsOverlay.handleTouchStart(touch)) {
+      return;
+    }
 
     if (hitTest(this.layout.backButton, x, y)) {
       this.press('BACK');
@@ -327,6 +357,10 @@ export default class PunchGameScene {
     const y = touch.clientY;
     const pressedId = this.pressedId;
     this.pressedTimer = 0.12;
+
+    if (this.settingsOverlay.handleTouchEnd(touch)) {
+      return;
+    }
 
     if (pressedId === 'BACK' && hitTest(this.layout.backButton, x, y)) {
       this.goToMenu();

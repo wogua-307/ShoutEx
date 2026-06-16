@@ -1,12 +1,17 @@
 import { COLORS, SCREEN } from '../core/constants.js';
 import { drawGameIcon } from '../assets/pixel-sprites.js';
 import {
+  drawBackIconButton,
   drawButton,
   drawMeter,
   drawPanel,
   drawPixelText,
+  drawRoundedPanel,
   hitTest,
 } from '../ui/pixel-ui.js';
+import GameSettingsOverlay from '../ui/game-settings-overlay.js';
+import { drawHistoryList } from '../ui/history-panel.js';
+import { addGameHistory, getGameHistory } from '../core/game-history.js';
 import { getHighScore, setHighScore } from '../core/storage.js';
 
 const PHASE = {
@@ -20,16 +25,21 @@ const STORAGE_KEY = 'shoutex.highScore.screamBird';
 export default class ScreamBirdScene {
   constructor(options) {
     this.audio = options.audio;
+    this.settings = options.settings;
+    this.music = options.music;
     this.goToMenu = options.goToMenu;
+    this.settingsOverlay = new GameSettingsOverlay(this.settings, this.music);
     this.phase = PHASE.START;
     this.time = 0;
     this.birdY = SCREEN.height * 0.48;
     this.velocity = 0;
+    this.controlLevel = 0;
     this.pipes = [];
-    this.spawnTimer = 0;
+    this.spawnTimer = 2.0;
     this.score = 0;
     this.finalScore = 0;
     this.highScore = 0;
+    this.history = [];
     this.pressedId = '';
     this.pressedTimer = 0;
     this.layout = {};
@@ -37,6 +47,7 @@ export default class ScreamBirdScene {
 
   onEnter() {
     this.highScore = getHighScore(STORAGE_KEY);
+    this.history = getGameHistory('SCREAM_BIRD');
     this.phase = PHASE.START;
     this.computeLayout();
     this.resetRun();
@@ -44,13 +55,36 @@ export default class ScreamBirdScene {
 
   computeLayout() {
     const margin = 16;
-    const top = Math.max(18, SCREEN.safeTop + 12);
+    const top = Math.max(18, SCREEN.statusBarHeight, SCREEN.safeTop) + 12;
     const bottom = SCREEN.height - Math.max(18, SCREEN.safeBottom + 16);
+    const panelW = SCREEN.width - margin * 2;
+    const startPanelH = Math.min(300, Math.max(262, SCREEN.height * 0.46));
+    const startPanelY = Math.max(top + 70, Math.min(SCREEN.height * 0.24, bottom - startPanelH - 72));
+    const gameOverPanelH = Math.min(292, Math.max(258, SCREEN.height * 0.43));
+    const gameOverPanelY = Math.max(top + 72, Math.min(SCREEN.height * 0.23, bottom - gameOverPanelH - 118));
 
     this.layout = {
       top,
       margin,
-      backButton: { x: margin, y: top, w: 94, h: 44 },
+      backButton: { x: margin, y: top, w: 48, h: 44 },
+      scorePill: {
+        x: Math.round((SCREEN.width - 88) / 2),
+        y: top,
+        w: 88,
+        h: 44,
+      },
+      startPanel: {
+        x: margin,
+        y: startPanelY,
+        w: panelW,
+        h: startPanelH,
+      },
+      gameOverPanel: {
+        x: margin,
+        y: gameOverPanelY,
+        w: panelW,
+        h: gameOverPanelH,
+      },
       startButton: {
         x: margin,
         y: bottom - 58,
@@ -69,18 +103,14 @@ export default class ScreamBirdScene {
         w: SCREEN.width - margin * 2,
         h: 44,
       },
-      meter: {
-        x: margin,
-        y: top + 54,
-        w: SCREEN.width - margin * 2,
-        h: 54,
-      },
     };
+    this.settingsOverlay.setTopControls(top, margin);
   }
 
   resetRun() {
     this.birdY = SCREEN.height * 0.48;
     this.velocity = 0;
+    this.controlLevel = 0;
     this.pipes = [];
     this.spawnTimer = 0;
     this.score = 0;
@@ -109,22 +139,28 @@ export default class ScreamBirdScene {
 
   updatePlaying(dt) {
     const level = this.audio.getState().level;
-    const gravity = 980;
-    const lift = level > 15 ? level * 20 : 0;
-    const maxFall = 760;
-    const maxRise = -860;
+    this.controlLevel += (level - this.controlLevel) * Math.min(1, dt * 4.5);
+
+    const gravity = 560;
+    const threshold = 16;
+    const maxFall = 300;
+    const maxRise = -250;
+    const lift = this.controlLevel > threshold
+      ? 360 + (this.controlLevel - threshold) * 7.2
+      : this.controlLevel * 5;
 
     this.velocity += (gravity - lift) * dt;
+    this.velocity *= Math.max(0.82, 1 - dt * 1.7);
     this.velocity = Math.max(maxRise, Math.min(maxFall, this.velocity));
     this.birdY += this.velocity * dt;
 
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnPipe();
-      this.spawnTimer = 1.55;
+      this.spawnTimer = 1.95;
     }
 
-    const speed = 170;
+    const speed = 128;
     for (let i = this.pipes.length - 1; i >= 0; i -= 1) {
       const pipe = this.pipes[i];
       pipe.x -= speed * dt;
@@ -145,7 +181,7 @@ export default class ScreamBirdScene {
   }
 
   spawnPipe() {
-    const gap = Math.max(170, SCREEN.height * 0.28);
+    const gap = Math.max(250, SCREEN.height * 0.4);
     const topLimit = this.layout.top + 122;
     const bottomLimit = SCREEN.height - Math.max(82, SCREEN.safeBottom + 54);
     const minCenter = topLimit + gap / 2 + 30;
@@ -182,6 +218,7 @@ export default class ScreamBirdScene {
     this.phase = PHASE.GAMEOVER;
     this.finalScore = this.score;
     this.highScore = setHighScore(STORAGE_KEY, this.score);
+    this.history = addGameHistory('SCREAM_BIRD', `得分 ${this.score}`);
   }
 
   getBirdRect() {
@@ -202,6 +239,8 @@ export default class ScreamBirdScene {
     } else if (this.phase === PHASE.GAMEOVER) {
       this.drawGameOverOverlay(ctx);
     }
+
+    this.settingsOverlay.drawModal(ctx);
   }
 
   drawWorld(ctx) {
@@ -266,11 +305,11 @@ export default class ScreamBirdScene {
     const bird = this.getBirdRect();
     ctx.save();
     ctx.translate(bird.x + bird.w / 2, bird.y + bird.h / 2);
-    ctx.rotate(Math.max(-0.6, Math.min(0.7, this.velocity / 700)));
+    ctx.rotate(Math.max(-0.45, Math.min(0.55, this.velocity / 760)));
     drawGameIcon(ctx, 'SCREAM_BIRD', -bird.w / 2, -bird.h / 2, bird.w, COLORS.orange);
     ctx.restore();
 
-    const level = this.audio.getState().level;
+    const level = this.controlLevel;
     if (level > 40) {
       ctx.fillStyle = COLORS.yellow;
       ctx.globalAlpha = 0.72;
@@ -282,51 +321,50 @@ export default class ScreamBirdScene {
   }
 
   drawHud(ctx) {
-    const audioState = this.audio.getState();
-    drawButton(ctx, this.layout.backButton, '返回', {
+    drawBackIconButton(ctx, this.layout.backButton, {
       color: COLORS.panel,
-      textColor: COLORS.text,
+      iconColor: COLORS.text,
       pressed: this.pressedId === 'BACK',
     });
+    this.settingsOverlay.drawButton(ctx);
 
     if (this.phase === PHASE.PLAYING) {
-      drawPixelText(ctx, `${this.score}`, SCREEN.width / 2, this.layout.top + 10, {
-        size: 54,
-        color: 'rgba(255,255,255,0.34)',
+      const scorePill = this.layout.scorePill;
+      drawRoundedPanel(ctx, scorePill, {
+        fill: 'rgba(7,11,20,0.62)',
+        border: 'rgba(255,255,255,0.24)',
+        radius: 18,
+        glow: COLORS.orange,
+        glowAlpha: 0.08,
+        lineWidth: 2,
+      });
+      drawPixelText(ctx, `${this.score}`, scorePill.x + scorePill.w / 2, scorePill.y + 4, {
+        size: 30,
+        color: COLORS.text,
         shadow: null,
         align: 'center',
         weight: '900',
       });
     }
-
-    if (this.phase !== PHASE.PLAYING) {
-      drawMeter(ctx, this.layout.meter, audioState.level, {
-        color: audioState.level > 50 ? COLORS.orange : COLORS.green,
-        label: audioState.isRecording ? 'LIVE VOICE ENERGY' : 'PREVIEW VOICE ENERGY',
-      });
-
-      if (audioState.error) {
-        drawPixelText(ctx, audioState.error, this.layout.meter.x + 10, this.layout.meter.y + this.layout.meter.h + 6, {
-          size: 11,
-          color: COLORS.yellow,
-          shadow: null,
-          weight: '700',
-        });
-      }
-    }
   }
 
   drawStartOverlay(ctx) {
-    const rect = {
-      x: 20,
-      y: SCREEN.height * 0.32,
-      w: SCREEN.width - 40,
-      h: 220,
+    const audioState = this.audio.getState();
+    const rect = this.layout.startPanel;
+    const meterRect = {
+      x: rect.x + 18,
+      y: rect.y + 118,
+      w: rect.w - 36,
+      h: 52,
     };
-    drawPanel(ctx, rect, {
-      fill: COLORS.panel,
+
+    drawRoundedPanel(ctx, rect, {
+      fill: 'rgba(15,23,42,0.94)',
       border: COLORS.orange,
-      shadowOffset: 6,
+      radius: 22,
+      glow: COLORS.orange,
+      glowAlpha: 0.12,
+      lineWidth: 2,
     });
 
     drawPixelText(ctx, '尖叫小鸟', SCREEN.width / 2, rect.y + 24, {
@@ -336,18 +374,40 @@ export default class ScreamBirdScene {
       align: 'center',
       weight: '900',
     });
-    drawPixelText(ctx, '大声向上飞，安静往下落', SCREEN.width / 2, rect.y + 72, {
+    drawPixelText(ctx, '中等音量悬停，大声才上升', SCREEN.width / 2, rect.y + 72, {
       size: 15,
       color: COLORS.textMuted,
       shadow: null,
       align: 'center',
     });
-    drawPixelText(ctx, `历史最高 ${this.highScore}`, SCREEN.width / 2, rect.y + 100, {
+    drawPixelText(ctx, `无限挑战 / 历史最高 ${this.highScore}`, SCREEN.width / 2, rect.y + 100, {
       size: 16,
       color: COLORS.yellow,
       shadow: null,
       align: 'center',
       weight: '900',
+    });
+
+    drawMeter(ctx, meterRect, audioState.level, {
+      color: audioState.level > 50 ? COLORS.orange : COLORS.green,
+      label: audioState.isRecording ? 'LIVE VOICE ENERGY' : 'PREVIEW VOICE ENERGY',
+    });
+
+    if (audioState.error) {
+      drawPixelText(ctx, audioState.error, meterRect.x + 10, meterRect.y + meterRect.h + 6, {
+        size: 11,
+        color: COLORS.yellow,
+        shadow: null,
+        weight: '700',
+        maxWidth: meterRect.w - 20,
+      });
+    }
+
+    drawHistoryList(ctx, this.history, {
+      x: rect.x + 18,
+      y: rect.y + 186,
+      w: rect.w - 36,
+      h: rect.h - 202,
     });
 
     drawButton(ctx, this.layout.startButton, '开始挑战', {
@@ -357,16 +417,14 @@ export default class ScreamBirdScene {
   }
 
   drawGameOverOverlay(ctx) {
-    const rect = {
-      x: 20,
-      y: SCREEN.height * 0.28,
-      w: SCREEN.width - 40,
-      h: 250,
-    };
-    drawPanel(ctx, rect, {
-      fill: COLORS.panel,
+    const rect = this.layout.gameOverPanel;
+    drawRoundedPanel(ctx, rect, {
+      fill: 'rgba(15,23,42,0.95)',
       border: COLORS.red,
-      shadowOffset: 6,
+      radius: 22,
+      glow: COLORS.red,
+      glowAlpha: 0.1,
+      lineWidth: 2,
     });
 
     drawPixelText(ctx, '游戏结束', SCREEN.width / 2, rect.y + 24, {
@@ -390,6 +448,12 @@ export default class ScreamBirdScene {
       align: 'center',
       weight: '900',
     });
+    drawHistoryList(ctx, this.history, {
+      x: rect.x + 18,
+      y: rect.y + 164,
+      w: rect.w - 36,
+      h: 64,
+    });
 
     drawButton(ctx, this.layout.restartButton, '再来一局', {
       color: COLORS.orange,
@@ -405,6 +469,10 @@ export default class ScreamBirdScene {
   handleTouchStart(touch) {
     const x = touch.clientX;
     const y = touch.clientY;
+
+    if (this.settingsOverlay.handleTouchStart(touch)) {
+      return;
+    }
 
     if (hitTest(this.layout.backButton, x, y)) {
       this.press('BACK');
@@ -433,6 +501,10 @@ export default class ScreamBirdScene {
     const y = touch.clientY;
     const pressedId = this.pressedId;
     this.pressedTimer = 0.12;
+
+    if (this.settingsOverlay.handleTouchEnd(touch)) {
+      return;
+    }
 
     if (pressedId === 'BACK' && hitTest(this.layout.backButton, x, y)) {
       this.goToMenu();

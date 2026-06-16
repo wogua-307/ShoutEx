@@ -1,3 +1,8 @@
 {
-  "deviceOrientation": "portrait"
+  "deviceOrientation": "portrait",
+  "permission": {
+    "scope.record": {
+      "desc": "用于通过声音音量控制游戏角色和技能"
+    }
+  }
 }
