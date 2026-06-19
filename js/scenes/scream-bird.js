@@ -21,6 +21,12 @@ const PHASE = {
 };
 
 const STORAGE_KEY = 'shoutex.highScore.screamBird';
+const VOICE_RISE_TIME = 0.12;
+const VOICE_FALL_TIME = 0.07;
+const BIRD_TARGET_STIFFNESS = 24;
+const BIRD_TARGET_DAMPING = 8.2;
+const BIRD_MAX_RISE_SPEED = -270;
+const BIRD_MAX_FALL_SPEED = 390;
 
 export default class ScreamBirdScene {
   constructor(options) {
@@ -39,6 +45,7 @@ export default class ScreamBirdScene {
     this.birdY = SCREEN.height * 0.48;
     this.velocity = 0;
     this.controlLevel = 0;
+    this.targetY = this.birdY;
     this.pipes = [];
     this.spawnTimer = 2.0;
     this.score = 0;
@@ -117,6 +124,7 @@ export default class ScreamBirdScene {
     this.birdY = SCREEN.height * 0.48;
     this.velocity = 0;
     this.controlLevel = 0;
+    this.targetY = this.birdY;
     this.pipes = [];
     this.spawnTimer = 0;
     this.score = 0;
@@ -145,28 +153,30 @@ export default class ScreamBirdScene {
 
   updatePlaying(dt) {
     const level = this.audio.getState().level;
-    this.controlLevel += (level - this.controlLevel) * Math.min(1, dt * 4.5);
+    const voiceTime = level > this.controlLevel ? VOICE_RISE_TIME : VOICE_FALL_TIME;
+    const voiceFollow = 1 - Math.exp(-dt / voiceTime);
+    this.controlLevel += (level - this.controlLevel) * voiceFollow;
 
-    const gravity = 560;
-    const threshold = 16;
-    const maxFall = 300;
-    const maxRise = -250;
-    const lift = this.controlLevel > threshold
-      ? 360 + (this.controlLevel - threshold) * 7.2
-      : this.controlLevel * 5;
+    const topLimit = this.layout.top + 128;
+    const bottomLimit = SCREEN.height - Math.max(72, SCREEN.safeBottom + 48);
+    const usableHeight = Math.max(120, bottomLimit - topLimit);
+    const voiceRatio = Math.max(0, Math.min(1, (this.controlLevel - 8) / 58));
+    this.targetY = bottomLimit - usableHeight * voiceRatio;
 
-    this.velocity += (gravity - lift) * dt;
-    this.velocity *= Math.max(0.82, 1 - dt * 1.7);
-    this.velocity = Math.max(maxRise, Math.min(maxFall, this.velocity));
+    const distance = this.targetY - this.birdY;
+    const acceleration = distance * BIRD_TARGET_STIFFNESS - this.velocity * BIRD_TARGET_DAMPING;
+    this.velocity += acceleration * dt;
+    this.velocity = Math.max(BIRD_MAX_RISE_SPEED, Math.min(BIRD_MAX_FALL_SPEED, this.velocity));
     this.birdY += this.velocity * dt;
+    this.birdY = Math.max(topLimit - 16, Math.min(bottomLimit + 16, this.birdY));
 
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnPipe();
-      this.spawnTimer = 1.95;
+      this.spawnTimer = 2.15;
     }
 
-    const speed = 128;
+    const speed = 112;
     for (let i = this.pipes.length - 1; i >= 0; i -= 1) {
       const pipe = this.pipes[i];
       pipe.x -= speed * dt;
@@ -187,16 +197,16 @@ export default class ScreamBirdScene {
   }
 
   spawnPipe() {
-    const gap = Math.max(250, SCREEN.height * 0.4);
+    const gap = Math.max(278, Math.min(340, SCREEN.height * 0.43));
     const topLimit = this.layout.top + 122;
-    const bottomLimit = SCREEN.height - Math.max(82, SCREEN.safeBottom + 54);
+    const bottomLimit = SCREEN.height - Math.max(92, SCREEN.safeBottom + 64);
     const minCenter = topLimit + gap / 2 + 30;
     const maxCenter = bottomLimit - gap / 2 - 30;
     const center = minCenter + Math.random() * Math.max(40, maxCenter - minCenter);
 
     this.pipes.push({
       x: SCREEN.width + 24,
-      w: 58,
+      w: 54,
       gapTop: center - gap / 2,
       gapBottom: center + gap / 2,
       passed: false,
@@ -204,19 +214,19 @@ export default class ScreamBirdScene {
   }
 
   checkCollision() {
-    const bird = this.getBirdRect();
+    const bird = this.getBirdHitRect();
 
-    if (bird.y < this.layout.top + 112 || bird.y + bird.h > SCREEN.height - Math.max(42, SCREEN.safeBottom + 20)) {
+    if (bird.y < this.layout.top + 104 || bird.y + bird.h > SCREEN.height - Math.max(34, SCREEN.safeBottom + 14)) {
       return true;
     }
 
     return this.pipes.some((pipe) => {
-      const overlapX = bird.x < pipe.x + pipe.w && bird.x + bird.w > pipe.x;
+      const overlapX = bird.x < pipe.x + pipe.w - 5 && bird.x + bird.w > pipe.x + 5;
       if (!overlapX) {
         return false;
       }
 
-      return bird.y < pipe.gapTop || bird.y + bird.h > pipe.gapBottom;
+      return bird.y < pipe.gapTop + 8 || bird.y + bird.h > pipe.gapBottom - 8;
     });
   }
 
@@ -234,6 +244,17 @@ export default class ScreamBirdScene {
       y: this.birdY - size / 2,
       w: size,
       h: size,
+    };
+  }
+
+  getBirdHitRect() {
+    const bird = this.getBirdRect();
+    const inset = 7;
+    return {
+      x: bird.x + inset,
+      y: bird.y + inset,
+      w: bird.w - inset * 2,
+      h: bird.h - inset * 2,
     };
   }
 
@@ -382,7 +403,7 @@ export default class ScreamBirdScene {
       align: 'center',
       weight: '900',
     });
-    drawPixelText(ctx, '提示：中等音量悬停，大声才上升', SCREEN.width / 2, rect.y + 72, {
+    drawPixelText(ctx, '提示：声音越大飞得越高，收声会平稳下降', SCREEN.width / 2, rect.y + 72, {
       size: 15,
       color: COLORS.textMuted,
       shadow: null,

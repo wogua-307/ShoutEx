@@ -42,6 +42,8 @@ export default class MageGameScene {
     this.gameTime = 0;
     this.lastFireTime = 0;
     this.spawnTimer = 0;
+    this.mageY = 0;
+    this.draggingMage = false;
     this.enemies = [];
     this.projectiles = [];
     this.pressedId = '';
@@ -84,6 +86,8 @@ export default class MageGameScene {
     this.gameTime = 0;
     this.lastFireTime = 0;
     this.spawnTimer = 0.8;
+    this.mageY = (this.layout.laneTop + this.layout.laneBottom) / 2;
+    this.draggingMage = false;
     this.enemies = [];
     this.projectiles = [];
   }
@@ -175,7 +179,7 @@ export default class MageGameScene {
     this.projectiles.push({
       type,
       x: this.layout.baseWidth + 8,
-      y: (this.layout.laneTop + this.layout.laneBottom) / 2,
+      y: this.mageY,
       size,
       damage,
       speed,
@@ -289,7 +293,7 @@ export default class MageGameScene {
 
     const mageSize = Math.min(70, baseWidth * 0.9);
     const mageX = baseWidth / 2 - mageSize / 2;
-    const mageY = (laneTop + laneBottom) / 2 - mageSize / 2 + Math.sin(this.time * 5) * 3;
+    const mageY = this.mageY - mageSize / 2 + Math.sin(this.time * 5) * 3;
     drawGameIcon(ctx, 'MAGE', mageX, mageY, mageSize, COLORS.purple);
 
     if (this.phase === PHASE.PLAYING && this.audio.getState().level > 10) {
@@ -297,6 +301,11 @@ export default class MageGameScene {
       ctx.globalAlpha = 0.55;
       ctx.fillRect(baseWidth + 4, mageY + mageSize * 0.45, 10, 10);
       ctx.globalAlpha = 1;
+    }
+
+    if (this.phase === PHASE.PLAYING) {
+      ctx.fillStyle = 'rgba(168,85,247,0.22)';
+      ctx.fillRect(baseWidth + 8, this.mageY - 1, SCREEN.width - baseWidth - 16, 2);
     }
   }
 
@@ -389,7 +398,7 @@ export default class MageGameScene {
       align: 'center',
       weight: '900',
     });
-    drawPixelText(ctx, '提示：小声飞弹，中声火球，大声陨石', SCREEN.width / 2, rect.y + 74, {
+    drawPixelText(ctx, '提示：拖动法师瞄准，小声飞弹，中声火球，大声陨石', SCREEN.width / 2, rect.y + 74, {
       size: 15,
       color: COLORS.textMuted,
       shadow: null,
@@ -461,6 +470,12 @@ export default class MageGameScene {
       return;
     }
 
+    if (this.phase === PHASE.PLAYING && this.isMageControlTouch(x, y)) {
+      this.draggingMage = true;
+      this.setMageY(y);
+      return;
+    }
+
     if (this.phase === PHASE.START && hitTest(this.layout.startButton, x, y)) {
       this.press('START');
       return;
@@ -477,11 +492,22 @@ export default class MageGameScene {
     }
   }
 
+  handleTouchMove(touch) {
+    if (this.historyOverlay.open || this.settingsOverlay.open) {
+      return;
+    }
+
+    if (this.draggingMage && this.phase === PHASE.PLAYING) {
+      this.setMageY(touch.clientY);
+    }
+  }
+
   handleTouchEnd(touch) {
     const x = touch.clientX;
     const y = touch.clientY;
     const pressedId = this.pressedId;
     this.pressedTimer = 0.12;
+    this.draggingMage = false;
 
     if (this.historyOverlay.handleTouchEnd(touch)) {
       return;
@@ -511,5 +537,18 @@ export default class MageGameScene {
   press(id) {
     this.pressedId = id;
     this.pressedTimer = 0;
+  }
+
+  isMageControlTouch(x, y) {
+    return x <= Math.max(this.layout.baseWidth + 56, SCREEN.width * 0.34) &&
+      y >= this.layout.laneTop &&
+      y <= this.layout.laneBottom;
+  }
+
+  setMageY(y) {
+    const mageSize = Math.min(70, this.layout.baseWidth * 0.9);
+    const minY = this.layout.laneTop + mageSize / 2 + 6;
+    const maxY = this.layout.laneBottom - mageSize / 2 - 6;
+    this.mageY = Math.max(minY, Math.min(maxY, y));
   }
 }
